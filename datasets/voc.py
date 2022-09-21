@@ -90,6 +90,8 @@ class VOCSegmentation(data.Dataset):
 
         else:
             file_names = get_dataset_list('voc', self.task, cil_step, image_set, self.overlap)
+            while len(file_names) < opts.batch_size:
+                file_names = file_names * 2
             
         self.images = [os.path.join(image_dir, x + ".jpg") for x in file_names]
         self.masks = [os.path.join(mask_dir, x + ".png") for x in file_names]
@@ -132,12 +134,13 @@ class VOCSegmentation(data.Dataset):
             img, target, sal_map = self.transform(img, target, sal_map)
         
         # add unknown label, background index: 0 -> 1, unknown index: 0
-        if self.image_set == 'train' and self.unknown:
+        if (self.image_set == 'train' or self.image_set == 'memory') and self.unknown:
             target = torch.where(target == 255, 
                                  torch.zeros_like(target) + 255,  # keep 255 (uint8)
                                  target+1) # unknown label
 
             unknown_area = (target == 1) & (sal_map > 0)
+            # 0: unknown; 1: background
             target = torch.where(unknown_area, torch.zeros_like(target), target)
             
         return img, target.long(), sal_map, file_name
