@@ -480,6 +480,9 @@ def main(opts):
             print("[%s / step %d] Epoch %d, Itrs %d/%d, Loss=%6f, Time=%.2f , LR=%.8f" %
                   (opts.task, opts.curr_step, cur_epochs, cur_itrs, total_itrs, 
                    avg_loss.avg, avg_time.avg*1000, optimizer.param_groups[0]['lr']))
+            with open('my_log.txt', 'w') as f:
+                f.write("[%s / step %d] Epoch %d, Itrs %d/%d, Loss=%6f, Time=%.2f , LR=%.8f" % (opts.task, opts.curr_step, cur_epochs, cur_itrs, total_itrs, avg_loss.avg, avg_time.
+avg*1000, optimizer.param_groups[0]['lr']))
 
         if val_interval > 0 and (cur_itrs) % val_interval == 0:
             print("validation...")
