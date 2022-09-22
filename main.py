@@ -267,7 +267,7 @@ def main(opts):
         else:
             # original implementation
             training_params = [{'params': model.backbone.parameters(), 'lr': 0.001},
-                            {'params': model.classifier.parameters(), 'lr': 0.01}
+                            {'params': model.classifier.parameters(), 'lr': 0.01}]
         
     optimizer = torch.optim.SGD(params=training_params, 
                                 lr=opts.lr, 
