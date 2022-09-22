@@ -1,7 +1,48 @@
 from .utils import IntermediateLayerGetter
 from ._deeplab import DeepLabHead, DeepLabHeadV3Plus, DeepLabV3
 from .backbone import resnet
+from .backbone import resnet_renorm
 from .backbone import mobilenetv2
+
+import numpy as np
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+class pixel_classifier(nn.Module):
+    def __init__(self, in_channel, num_classes):
+        super().__init__()
+        num_classes = np.sum(num_classes)
+        self.num_classes = num_classes
+        print(num_classes)
+        print(self.num_classes)
+        self.class_mat = nn.Conv2d(in_channel, self.num_classes, 1, bias = False)
+        self.scale_factor = 10
+    
+    def forward(self, x, scale_factor=None):
+        '''
+        x: (B, in_channel, H, W)
+        '''
+        # x_norm: (B, in_channel, H, W) where x_norm[i, :, H, W] is the norm of
+        # x[i, :, H, W]. That is, x/x_norm yields normalized value along channel axis
+        x_norm = torch.norm(x, p=2, dim=1).unsqueeze(1).expand_as(x)
+        x_normalized = x.div(x_norm + 1e-5) # avoid div by zero
+        class_mat_norm = torch.norm(self.class_mat.weight.data, p=2, dim=1).unsqueeze(1).expand_as(self.class_mat.weight.data)
+        self.class_mat.weight.data = self.class_mat.weight.data.div(class_mat_norm + 1e-5)
+        cos_dist = self.class_mat(x_normalized)
+        if scale_factor is not None:
+            return scale_factor * cos_dist
+        else:
+            return self.scale_factor * cos_dist
+
+def _segm_resnet_renorm(name, backbone_name, num_classes, pretrained_backbone, bn_freeze):
+    assert name == 'deeplabv3' and backbone_name == 'deeplabv3_resnet101_renorm'
+
+    backbone = resnet_renorm.__dict__[backbone_name](pretrained=pretrained_backbone)
+    classifier = pixel_classifier(256, num_classes)
+
+    model = DeepLabV3(backbone, classifier, bn_freeze)
+    return model
 
 def _segm_resnet(name, backbone_name, num_classes, output_stride, pretrained_backbone, bn_freeze):
 
@@ -63,6 +104,9 @@ def _load_model(arch_type, backbone, num_classes, output_stride, pretrained_back
     if backbone=='mobilenetv2':
         model = _segm_mobilenet(arch_type, backbone, num_classes, output_stride=output_stride, 
                                 pretrained_backbone=pretrained_backbone, bn_freeze=bn_freeze)
+    elif backbone=='resnet101_renorm' and arch_type=='deeplabv3':
+        assert output_stride is None
+        model = _segm_resnet_renorm('deeplabv3', 'deeplabv3_resnet101_renorm', num_classes, pretrained_backbone, bn_freeze)
     elif backbone.startswith('resnet'):
         model = _segm_resnet(arch_type, backbone, num_classes, output_stride=output_stride, 
                              pretrained_backbone=pretrained_backbone, bn_freeze=bn_freeze)
@@ -94,6 +138,17 @@ def deeplabv3_resnet101(num_classes=21, output_stride=8, pretrained_backbone=Tru
         pretrained_backbone (bool): If True, use the pretrained backbone.
     """
     return _load_model('deeplabv3', 'resnet101', num_classes, output_stride=output_stride, 
+                       pretrained_backbone=pretrained_backbone, bn_freeze=bn_freeze)
+
+def deeplabv3_resnet101_renorm(num_classes=21, output_stride=8, pretrained_backbone=True, bn_freeze=False):
+    """Constructs a DeepLabV3 model with a ResNet-101 backbone.
+
+    Args:
+        num_classes (int): number of classes.
+        output_stride (int): output stride for deeplab.
+        pretrained_backbone (bool): If True, use the pretrained backbone.
+    """
+    return _load_model('deeplabv3', 'resnet101_renorm', num_classes, output_stride=None, 
                        pretrained_backbone=pretrained_backbone, bn_freeze=bn_freeze)
 
 def deeplabv3_mobilenet(num_classes=21, output_stride=8, pretrained_backbone=True, bn_freeze=False, **kwargs):
@@ -144,3 +199,5 @@ def deeplabv3plus_mobilenet(num_classes=21, output_stride=8, pretrained_backbone
     """
     return _load_model('deeplabv3plus', 'mobilenetv2', num_classes, output_stride=output_stride, 
                        pretrained_backbone=pretrained_backbone, bn_freeze=bn_freeze)
+
+

@@ -44,7 +44,7 @@ def get_argparser():
     parser.add_argument("--model", type=str, default='deeplabv3_resnet101',
                         choices=['deeplabv3_resnet50',  'deeplabv3plus_resnet50',
                                  'deeplabv3_resnet101', 'deeplabv3plus_resnet101',
-                                 'deeplabv3_mobilenet', 'deeplabv3plus_mobilenet'], help='model name')
+                                 'deeplabv3_mobilenet', 'deeplabv3plus_mobilenet', 'deeplabv3_resnet101_renorm_prototype'], help='model name')
     parser.add_argument("--separable_conv", action='store_true', default=False,
                         help="apply separable conv to decoder and aspp")
     parser.add_argument("--output_stride", type=int, default=16, choices=[8, 16])
@@ -215,7 +215,8 @@ def main(opts):
         'deeplabv3_resnet101': network.deeplabv3_resnet101,
         'deeplabv3plus_resnet101': network.deeplabv3plus_resnet101,
         'deeplabv3_mobilenet': network.deeplabv3_mobilenet,
-        'deeplabv3plus_mobilenet': network.deeplabv3plus_mobilenet
+        'deeplabv3plus_mobilenet': network.deeplabv3plus_mobilenet,
+        'deeplabv3_resnet101_renorm_prototype': network.deeplabv3_resnet101_renorm
     }
 
     model = model_map[opts.model](num_classes=opts.num_classes, output_stride=opts.output_stride, bn_freeze=bn_freeze)
@@ -235,7 +236,7 @@ def main(opts):
     # Set up metrics
     metrics = StreamSegMetrics(sum(opts.num_classes)-1 if opts.unknown else sum(opts.num_classes), dataset=opts.dataset)
 
-    print(model.classifier.head)
+    print(model.classifier)
     
     # Set up optimizer & parameters
     if opts.freeze and opts.curr_step > 0:
@@ -260,8 +261,13 @@ def main(opts):
             training_params.append({'params': model.classifier.head[1].parameters(), 'lr': opts.lr*1e-4})
         
     else:
-        training_params = [{'params': model.backbone.parameters(), 'lr': 0.001},
-                           {'params': model.classifier.parameters(), 'lr': 0.01}]
+        if 'renorm' in opts.model:
+            training_params = [{'params': model.backbone.parameters(), 'lr': 0.01},
+                            {'params': model.classifier.parameters(), 'lr': 0.01}]
+        else:
+            # original implementation
+            training_params = [{'params': model.backbone.parameters(), 'lr': 0.001},
+                            {'params': model.classifier.parameters(), 'lr': 0.01}
         
     optimizer = torch.optim.SGD(params=training_params, 
                                 lr=opts.lr, 
