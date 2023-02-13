@@ -354,10 +354,10 @@ def main(opts):
         
         """ data load """
         try:
-            images, labels, sal_maps, _ = train_iter.next()
+            images, labels, sal_maps, _ = next(train_iter)
         except:
             train_iter = iter(train_loader)
-            images, labels, sal_maps, _ = train_iter.next()
+            images, labels, sal_maps, _ = next(train_iter)
             cur_epochs += 1
             avg_loss.reset()
             avg_time.reset()
@@ -369,10 +369,10 @@ def main(opts):
         """ memory """
         if opts.curr_step > 0 and opts.mem_size > 0:
             try:
-                m_images, m_labels, m_sal_maps, _ = mem_iter.next()
+                m_images, m_labels, m_sal_maps, _ = next(mem_iter)
             except:
                 mem_iter = iter(memory_loader)
-                m_images, m_labels, m_sal_maps, _ = mem_iter.next()
+                m_images, m_labels, m_sal_maps, _ = next(mem_iter)
 
             m_images = m_images.to(device, dtype=torch.float32, non_blocking=True)
             m_labels = m_labels.to(device, dtype=torch.long, non_blocking=True)
